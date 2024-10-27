@@ -20,8 +20,6 @@ def credit_format(credit_data):
     credit_2 = []
     credit_format_type = get_credit_format(credit_data[0])
     for credit_line in credit_data:
-        print(credit_line)
-        print(credit_format_type)
         match credit_format_type:
             case 'single':
                 if ''.join(credit_line):
@@ -36,7 +34,7 @@ def credit_format(credit_data):
                     credit_1.append(credit_line[1])
 
     consolidated_credits = credit_1 + credit_2
-    print(consolidated_credits)
+
 
     credit_list = []
     position_list = {}
@@ -51,7 +49,8 @@ def credit_format(credit_data):
             position_list['names'] = [credit[1]]
         else:
             position_list['names'].append(credit[1])
-    credit_list.append(position_list)
+    if credit_format_type != 'special':
+        credit_list.append(position_list)
     return credit_list
 
 def get_credit_format(credit_line):

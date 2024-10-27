@@ -16,7 +16,7 @@ for line in data:
         continue
 
     card_data.append(parse(line))
-
+cards.append(Card(card_data))
 try:
     root = os.path.dirname(os.path.abspath(__file__))
     files = glob.glob(os.path.join(root, 'Cards', '*'))
@@ -30,6 +30,6 @@ except OSError:
 
 for i in range(len(cards)):
     image = generate(cards[i])
-    image.save(f'Cards/{i:02d}.png')
+    image.save(f'Cards/{i:02d}.png', 'PNG', transparent=0)
 
 print('All cards generated successfully.')
