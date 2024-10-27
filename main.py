@@ -10,7 +10,7 @@ with open('csv/F24 Anicafe Credits.csv', encoding='utf-8') as file:
     data = list(csv.reader(file))[3:]
 
 for line in data:
-    if ''.join(line) == '':
+    if not ''.join(line):
         cards.append(Card(card_data))
         card_data = []
         continue
@@ -18,7 +18,9 @@ for line in data:
     card_data.append(parse(line))
 
 try:
-    files = glob.glob(os.path.join('/Cards', '*'))
+    root = os.path.dirname(os.path.abspath(__file__))
+    files = glob.glob(os.path.join(root, 'Cards', '*'))
+
     for file in files:
         if os.path.isfile(file):
             os.remove(file)
@@ -28,6 +30,6 @@ except OSError:
 
 for i in range(len(cards)):
     image = generate(cards[i])
-    image.save(f'Cards/{i:03d}.png')
+    image.save(f'Cards/{i:02d}.png')
 
 print('All cards generated successfully.')

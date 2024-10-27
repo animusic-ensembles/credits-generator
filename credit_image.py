@@ -21,32 +21,47 @@ def generate(card):
     current_height = 0
     max_height = 0
     credit_height = 0
-    for position in card.credits:
-        credit_height += len(position['names']) * (font_size + spacing)
+    if card.credit_data_format == 'special':
+        credit_height = len(card.credits) * (font_size + spacing)
+    else:
+        for position in card.credits:
+            credit_height += len(position['names']) * (font_size + spacing)
     estimated_height = credit_height / math.ceil(credit_height / bounding_box[1])
 
     position_max_length = 0
     name_max_length = 0
     position_list = ''
     name_list = ''
-    for position in card.credits:
-        if current_height + len(position['names']) * (font_size + spacing) > estimated_height + 10:
-            credit_lines.append((position_list, name_list, (position_max_length, name_max_length)))
-            max_height = max(max_height, current_height)
-            current_height = 0
-            position_max_length = 0
-            name_max_length = 0
-            position_list = ''
-            name_list = ''
-        position_list += position['position'] + len(position['names']) * '\n'
-        name_list += '\n'.join(position['names']) + '\n'
-        current_height += len(position['names']) * (font_size + spacing)
-        position_max_length = max(position_max_length, draw.textlength(position['position'], font=light_font,
-                                                                       font_size=font_size))
-        for name in position['names']:
-            name_max_length = max(name_max_length, draw.textlength(name, font=regular_font, font_size=font_size))
-    credit_lines.append((position_list, name_list, (position_max_length, name_max_length)))
-    max_height = max(max_height, current_height)
+    if card.credit_data_format == 'special':
+        for credit in card.credits:
+            if current_height + font_size + spacing > estimated_height + spacing:
+                credit_lines.append(name_list)
+                max_height = max(max_height, current_height)
+                current_height = 0
+                name_list = ''
+            name_list += credit + '\n'
+            current_height += font_size + spacing
+        credit_lines.append(name_list)
+        max_height = max(max_height, current_height)
+    else:
+        for position in card.credits:
+            if current_height + len(position['names']) * (font_size + spacing) > estimated_height + spacing:
+                credit_lines.append((position_list, name_list, (position_max_length, name_max_length)))
+                max_height = max(max_height, current_height)
+                current_height = 0
+                position_max_length = 0
+                name_max_length = 0
+                position_list = ''
+                name_list = ''
+            position_list += position['position'] + len(position['names']) * '\n'
+            name_list += '\n'.join(position['names']) + '\n'
+            current_height += len(position['names']) * (font_size + spacing)
+            position_max_length = max(position_max_length, draw.textlength(position['position'], font=light_font,
+                                                                           font_size=font_size))
+            for name in position['names']:
+                name_max_length = max(name_max_length, draw.textlength(name, font=regular_font, font_size=font_size))
+        credit_lines.append((position_list, name_list, (position_max_length, name_max_length)))
+        max_height = max(max_height, current_height)
 
     total_height = max_height + title_height + subtitle_height
     draw.text(xy=(1920 / 2, 1080 / 2 - total_height / 2 + font_size), text=card.title,
@@ -70,25 +85,39 @@ def generate(card):
             line_align = []
 
     for i in range(len(credit_lines)):
-        lengths = credit_lines[i][2]
-        width = lengths[0] + lengths[1] + 2 * spacing
+        if card.credit_data_format != 'special':
+            lengths = credit_lines[i][2]
+            width = lengths[0] + lengths[1] + 2 * spacing
         y = 1080 / 2 - total_height / 2 + title_height + subtitle_height
-        match line_align[i]:
-            case 'left':
-                position_x = line_x_poses[i] + lengths[0]
-                names_x = line_x_poses[i] + lengths[0] + 2 * spacing
-            case 'center':
-                position_x = line_x_poses[i] - width / 2 + lengths[0]
-                names_x = line_x_poses[i] + width / 2 - lengths[1]
-            case 'right':
-                position_x = line_x_poses[i] - lengths[1] - 2 * spacing
-                names_x = line_x_poses[i] - lengths[1]
-            case _:
-                position_x = -1920
-                names_x = -1920
-        draw.text(xy=(position_x, y,), text=credit_lines[i][0], fill='white', font=light_font, anchor='ra',
-                  spacing=spacing, align='right', font_size=font_size)
-        draw.text(xy=(names_x, y,), text=credit_lines[i][1], fill='white', font=regular_font, anchor='la',
-                  spacing=spacing, align='left', font_size=font_size)
+        if card.credit_data_format == 'special':
+            x = line_x_poses[i]
+            match line_align[i]:
+                case 'left':
+                    draw.text(xy=(x, y,), text=credit_lines[i], fill='white', font=regular_font, anchor='la',
+                              spacing=spacing, align='center', font_size=font_size)
+                case 'center':
+                    draw.text(xy=(x, y,), text=credit_lines[i], fill='white', font=regular_font, anchor='ma',
+                              spacing=spacing, align='center', font_size=font_size)
+                case 'right':
+                    draw.text(xy=(x, y,), text=credit_lines[i], fill='white', font=regular_font, anchor='ra',
+                              spacing=spacing, align='center', font_size=font_size)
+        else:
+            match line_align[i]:
+                case 'left':
+                    position_x = line_x_poses[i] + lengths[0]
+                    names_x = line_x_poses[i] + lengths[0] + 2 * spacing
+                case 'center':
+                    position_x = line_x_poses[i] - width / 2 + lengths[0]
+                    names_x = line_x_poses[i] + width / 2 - lengths[1]
+                case 'right':
+                    position_x = line_x_poses[i] - lengths[1] - 2 * spacing
+                    names_x = line_x_poses[i] - lengths[1]
+                case _:
+                    position_x = -1920
+                    names_x = -1920
+            draw.text(xy=(position_x, y,), text=credit_lines[i][0], fill='white', font=light_font, anchor='ra',
+                      spacing=spacing, align='right', font_size=font_size)
+            draw.text(xy=(names_x, y,), text=credit_lines[i][1], fill='white', font=regular_font, anchor='la',
+                      spacing=spacing, align='left', font_size=font_size)
 
     return image
