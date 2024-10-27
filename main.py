@@ -6,7 +6,7 @@ from credit_image import generate
 cards = []
 card_data = []
 
-with open('F24 Anicafe Credits.csv', encoding='utf-8') as file:
+with open('csv/F24 Anicafe Credits.csv', encoding='utf-8') as file:
     data = list(csv.reader(file))[3:]
 
 for line in data:
