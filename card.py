@@ -43,6 +43,7 @@ def credit_format(credit_data):
             credit_list.append(credit)
         elif credit[0]:
             if position_list:
+                position_list['names'] = sorted(position_list['names'])
                 credit_list.append(position_list)
                 position_list = {}
             position_list['position'] = credit[0]
@@ -50,6 +51,7 @@ def credit_format(credit_data):
         else:
             position_list['names'].append(credit[1])
     if credit_format_type != 'special':
+        position_list['names'] = sorted(position_list['names'])
         credit_list.append(position_list)
     return credit_list
 
