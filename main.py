@@ -28,8 +28,11 @@ try:
 except OSError:
     print('Error occurred while deleting old cards.')
 
-for i in range(len(cards)):
-    image = generate(cards[i])
-    image.save(f'Cards/{i:02d}.png', 'PNG', transparent=0)
+with open('csv/setlist.csv', 'w', encoding='utf-8') as out:
+    for i in range(len(cards)):
+        image = generate(cards[i])
+        image.save(f'Cards/{i:02d}.png', 'PNG', transparent=0)
+        if cards[i].subtitle:
+            out.write(f'{cards[i].title},{cards[i].subtitle}\n')
 
 print('All cards generated successfully.')
