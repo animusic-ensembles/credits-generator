@@ -3,8 +3,8 @@ import math
 
 margins = 100
 title_size = 36
-font_size = 32
-spacing = 16
+font_size = 26
+spacing = 12
 title_font = ImageFont.truetype('font/Roboto-Regular.ttf', size=title_size)
 regular_font = ImageFont.truetype('font/Roboto-Regular.ttf', size=font_size)
 light_font = ImageFont.truetype('font/Roboto-Light.ttf', size=font_size)
@@ -15,7 +15,7 @@ def generate(card):
     draw = ImageDraw.Draw(image)
 
     credit_lines = []
-    title_height = font_size + spacing
+    title_height = font_size + 2 * spacing
     subtitle_height = 0
     if card.subtitle:
         subtitle_height = font_size + 2 * spacing
@@ -89,7 +89,11 @@ def generate(card):
     if card.subtitle:
         draw.text(xy=(1920 / 2, 1080 / 2 - total_height / 2 + title_height + font_size), text=card.subtitle,
                   fill='white', font=light_font, anchor='ms', align='center', font_size=font_size)
-
+    # print(card.title)
+    # for i in range(len(credit_lines)):
+    #     print(i)
+    #     print(credit_lines[i][0].count('\n'))
+    #     print(credit_lines[i][:2])
     match len(credit_lines):
         case 1:
             line_x_poses = [1920 / 2]
