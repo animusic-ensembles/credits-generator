@@ -5,8 +5,9 @@ from credit_image import generate
 
 cards = []
 card_data = []
+smaller_font_override = [] # e.g. A Cruel Angel's Thesis
 
-with open('csv/F24 EOT Credits.csv', encoding='utf-8') as file:
+with open('csv/S25 EOT Credits.csv', encoding='utf-8') as file:
     data = list(csv.reader(file))[3:]
 
 for line in data:
@@ -30,7 +31,7 @@ except OSError:
 
 with open('csv/setlist.csv', 'w', encoding='utf-8') as out:
     for i in range(len(cards)):
-        image = generate(cards[i])
+        image = generate(cards[i], cards[i].title in smaller_font_override)
         image.save(f'Cards/{i:02d}.png', 'PNG', transparent=0)
         if cards[i].subtitle:
             out.write(f'{cards[i].title},{cards[i].subtitle}\n')

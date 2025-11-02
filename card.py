@@ -1,8 +1,9 @@
 class Card:
     def __init__(self, card_data):
         self.title = card_data[0]
+        print(card_data)
         if type(card_data[1]) is str:
-            self.subtitle = card_data[1]
+            self.subtitle = card_data[1].replace("\\n", "\n")
             self.credit_data_format = get_credit_format(card_data[2])
             self.credits = credit_format(card_data[2:])
         else:
@@ -34,7 +35,6 @@ def credit_format(credit_data):
                     credit_1.append(credit_line[1])
 
     consolidated_credits = credit_1 + credit_2
-
 
     credit_list = []
     position_list = {}
