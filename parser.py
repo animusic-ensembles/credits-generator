@@ -7,6 +7,11 @@ from models import CardData, RoleCredit
 import config
 
 
+# ============================================================
+# Error class
+# ============================================================
+
+
 @dataclass(slots=True)
 class ParseError(Exception):
     message: str
@@ -17,14 +22,27 @@ class ParseError(Exception):
         return f'ParseError(row {self.row_num}): {self.message} | {list(self.row)}'
 
 
+# ============================================================
+# Helper functions
+# ============================================================
+
+
 def _clean(cell: str) -> str:
+    """
+    Strip whitespace
+    """
     return (cell or '').strip()
 
 
-_slug_re = re.compile(r'[^a-z0-9]+')
-
-
 def slugify(text: str) -> str:
+    """
+    Deterministic slug
+
+    - lowercase
+    - non-alphabet/number to underscore
+    - collapse underscores
+    """
+    _slug_re = re.compile(r'[^a-z0-9]+')
     s = text.strip().lower()
     s = _slug_re.sub('_', s)
     s = re.sub(r'_+', '_' , s).strip('_')
@@ -39,6 +57,11 @@ def _is_blank_row(c0: str, c1: str, c2: str) -> bool:
     return c0 == '' and c1 == '' and c2 == ''
 
 
+# ============================================================
+# Parser
+# ============================================================
+
+
 def parse_cards_csv(path: str | Path) -> List[CardData]:
     """
     Parse a credits CSV file into a list of CardData
@@ -48,18 +71,22 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         raise FileNotFoundError(path)
     
     cards: list[CardData] = []
+
+    # Global numbering for card_id
     card_index: int = 0
 
+    # Current card state
     title: Optional[str] = None
     subtitle: Optional[str] = None
     awaiting_subtitle_or_titleonly: bool = False
 
+    # Current card data accumulation
     current_role: Optional[str] = None
     role_to_names: Dict[str, List[str]] = {}
     role_order: List[str] = []
     
     list_items: List[str] = []
-    mode: Optional[str] = None
+    mode: Optional[str] = None  # None | 'credits' | 'list'
     
     def reset_state() -> None:
         nonlocal title, subtitle, awaiting_subtitle_or_titleonly
@@ -74,6 +101,9 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         mode = None
 
     def flush_title_only() -> None:
+        """
+        Flush a title-only card
+        """
         nonlocal card_index
         assert title is not None
 
@@ -92,10 +122,14 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         reset_state()
     
     def flush_current() -> None:
+        """
+        Flush the current card
+        """
         nonlocal card_index
         if title is None:
             return
 
+        # Decide card-type
         if mode == 'list':
             card_type = 'list'
             header_list: List[RoleCredit] = []
@@ -122,7 +156,7 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
                 card_id=make_card_id(card_index, title),
                 title=title,
                 subtitle=subtitle,
-                card_type=card_type,
+                card_type=card_type,    # 'credits' | 'list'
                 header_roles=header_list,
                 performer_roles=performer_list,
                 list_items=li
@@ -138,13 +172,17 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         for i, row in enumerate(reader, start=4):
             c0, c1, c2 = _clean(row[0]), _clean(row[1]), _clean(row[2])
 
+            # Check for card terminator
             if _is_blank_row(c0, c1, c2):
                 if title is not None and awaiting_subtitle_or_titleonly:
+                    # Blank row directly after title
                     flush_title_only()
                 else:
+                    # End of current card
                     flush_current()
                 continue
             
+            # If card doesn't start with title
             if title is None:
                 if c0 == '':
                     raise ParseError('Expected title in column 1', i, row)
@@ -152,12 +190,14 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
                 awaiting_subtitle_or_titleonly = True
                 continue
             
+            # Check for subtitle
             if awaiting_subtitle_or_titleonly:
                 awaiting_subtitle_or_titleonly = False
                 if c0 != '' and c1 == '' and c2 == '':
                     subtitle = c0
                     continue
         
+            # Determine row shape (list vs credits)
             if c1 != '' and c2 == '':
                 if mode is None:
                     mode = 'list'
@@ -184,6 +224,7 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
                     role_to_names[current_role].append(c2)
                 continue
 
+            # Non-blank row that doesn't match known patterns
             raise ParseError('Unrecognized row shape', i, row)
         
     # If file terminates without trailing blank row
