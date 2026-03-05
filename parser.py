@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import List, Dict, Optional, Sequence
 
 from models import CardData, RoleCredit
-import config
-
 
 # ============================================================
 # Error class
@@ -113,8 +111,7 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
                 title=title,
                 subtitle=subtitle,
                 card_type='title_only',
-                header_roles=[],
-                performer_roles=[],
+                roles=[],
                 list_items=[]
             )
         )
@@ -132,24 +129,18 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         # Decide card-type
         if mode == 'list':
             card_type = 'list'
-            header_list: List[RoleCredit] = []
-            performer_list: List[RoleCredit] = []
+            role_list: List[RoleCredit] = []
             li = list_items[:]
         else:
             card_type = 'credits'
             li = []
-            header_list = []
-            performer_list = []
+            role_list = []
 
             for role in role_order:
                 names = role_to_names.get(role, [])
                 if not names:
                     continue
-                rc = RoleCredit(role=role, names=names)
-                if role in config.DEFAULT_HEADER_ROLES:
-                    header_list.append(rc)
-                else:
-                    performer_list.append(rc)
+                role_list.append(RoleCredit(role=role, names=names))
 
         cards.append(
             CardData(
@@ -157,8 +148,7 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
                 title=title,
                 subtitle=subtitle,
                 card_type=card_type,    # 'credits' | 'list'
-                header_roles=header_list,
-                performer_roles=performer_list,
+                roles=role_list,
                 list_items=li
             )
         )
