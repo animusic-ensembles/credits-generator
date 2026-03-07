@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from math import ceil
 from typing import List, Optional, Sequence
 
-from models import CardData, RoleCredit, Metrics
+from models import *
 import config
 
 @dataclass(slots=True)
@@ -17,47 +17,6 @@ class LayoutDoesNotFitError(Exception):
         return f'LayoutDoesNotFitError(Card {self.card_id}): {self.total_lines} lines does not fit into {self.max_col} column(s).'
 
 
-# A single credit line
-# Entirely semantic
-@dataclass(slots=True)
-class CreditLine:
-    role_text: str
-    name_text: str
-
-
-# Layout for a single column of credits
-@dataclass(slots=True)
-class ColumnLayout:
-    x: int
-    y: int
-    width: int
-    blocks: List[List[CreditLine]]
-    total_lines: int
-
-
-# Complete layout plan for a card
-@dataclass(slots=True)
-class CardLayoutPlan:
-    card_id: str
-    card_type: str
-    title: str
-    subtitle: Optional[str]
-
-    card_w: int
-    card_h: int
-    content_left: int
-    content_right: int
-    content_top: int
-    content_bottom: int
-
-    title_y: int
-    body_y: int
-    body_bottom: int
-
-    columns: List[ColumnLayout]
-    list_items: List[str]
-
-
 def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
     """
     Generate a layout plan for a card
@@ -67,16 +26,14 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
     content_top = metrics.margin_t
     content_bottom = metrics.card_h - metrics.margin_b
 
-    title_y = content_top
-    y = title_y + metrics.title_line_h
-    if card.subtitle:
-        y += metrics.subtitle_line_h
-    y += metrics.title_gap_after
-
-    body_y = y
-    body_bottom = content_bottom
+    usable_h = max(0, content_bottom - content_top)
+    title_block_h = _get_title_block_height(card.subtitle, metrics)
 
     if card.card_type == 'title_only':
+        stack_h = title_block_h
+        stack_top = content_top + (usable_h - stack_h) // 2
+        title_y = stack_top
+        subtitle_y = (title_y + metrics.title_line_h if card.subtitle else None)
         return CardLayoutPlan(
             card_id=card.card_id,
             card_type=card.card_type,
@@ -89,13 +46,28 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
             content_top=content_top,
             content_bottom=content_bottom,
             title_y=title_y,
-            body_y=body_y,
-            body_bottom=body_bottom,
+            subtitle_y=subtitle_y,
+            body_y=stack_top + stack_h,
+            body_bottom=stack_top + stack_h,
             columns=[],
             list_items=[]
         )
+    
+    max_body_h = max(0, usable_h - title_block_h - metrics.title_gap_after)
+
     if card.card_type == 'list':
-        cols = _layout_list(card.card_id, card.list_items, metrics, content_left, content_right, body_y, body_bottom)
+        packed = _layout_list(card.card_id, card.list_items, metrics, max_body_h)
+        body_lines = _get_max_column_lines(packed)
+        body_h = body_lines * metrics.line_h
+
+        stack_h = title_block_h + metrics.title_gap_after + body_h
+        stack_top = content_top + (usable_h - stack_h) // 2
+        title_y = stack_top
+        subtitle_y = (title_y + metrics.title_line_h if card.subtitle else None)
+        body_y = stack_top + title_block_h + metrics.title_gap_after
+        body_bottom = body_y + body_h
+
+        cols = _materialize_columns(packed, len(packed), metrics, content_left, content_right, body_y)
         return CardLayoutPlan(
             card_id=card.card_id,
             card_type=card.card_type,
@@ -113,8 +85,20 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
             columns=cols,
             list_items=card.list_items
         )
+    
     if card.card_type == 'credits':
-        cols = _layout_credits(card.card_id, card.roles, metrics, content_left, content_right, body_y, body_bottom)
+        packed = _layout_credits(card.card_id, card.roles, metrics, max_body_h)
+        body_lines = _get_max_column_lines(packed)
+        body_h = body_lines * metrics.line_h
+
+        stack_h = title_block_h + metrics.title_gap_after + body_h
+        stack_top = content_top + (usable_h - stack_h) // 2
+        title_y = stack_top
+        subtitle_y = (title_y + metrics.title_line_h if card.subtitle else None)
+        body_y = stack_top + title_block_h + metrics.title_gap_after
+        body_bottom = body_y + body_h
+        
+        cols = _materialize_columns(packed, len(packed), metrics, content_left, content_right, body_y)
         return CardLayoutPlan(
             card_id=card.card_id,
             card_type=card.card_type,
@@ -146,20 +130,35 @@ def layout_card_with_fallback(card: CardData):
         return layout_card(card, config.METRICS_SMALL)
 
 
+def _get_title_block_height(subtitle: Optional[str], metrics: Metrics) -> int:
+    """
+    Height of the title/subtitle stack, excluding the gap before the body
+    """
+    height = metrics.title_line_h
+    if subtitle:
+        height += metrics.subtitle_line_h
+    return height
+
+
+def _get_max_column_lines(packed: List[List[List[CreditLine]]]) -> int:
+    """
+    Tallest column height, in text lines
+    """
+    if not packed:
+        return 0
+    return max(sum(len(block) for block in col) for col in packed)
+
+
 def _layout_list(
         card_id: str,
         items: Sequence[str],
         metrics: Metrics,
-        content_left: int,
-        content_right: int,
-        body_y: int,
-        body_bottom: int
-) -> List[ColumnLayout]:
+        max_body_h: int
+) -> List[List[List[CreditLine]]]:
     """
     Layout for a single column of credits
     """
-    available_h = max(0, body_bottom - body_y)
-    lines_per_col = max(1, available_h // metrics.line_h)
+    lines_per_col = max(1, max_body_h // metrics.line_h)
     total_lines = len(items)
 
     for k in range(1, max(1, metrics.max_cols) + 1):
@@ -171,16 +170,19 @@ def _layout_list(
             for col in range(k):
                 if total_remaining <= 0:
                     break
+
                 remaining_cols = k - col
                 target = ceil(total_remaining / remaining_cols)
+
                 take = min(lines_per_col, target)
                 chunk = items[idx: idx + take]
+
                 idx += take
                 total_remaining -= take
 
                 packed[col] = [[CreditLine(role_text='', name_text=name) for name in chunk]]
 
-            return _materialize_columns(packed, k, metrics, content_left, content_right, body_y)
+            return packed
     
     raise LayoutDoesNotFitError(card_id, total_lines, metrics.max_cols)
 
@@ -189,23 +191,17 @@ def _layout_credits(
         card_id: str,
         roles: Sequence[RoleCredit],
         metrics: Metrics,
-        content_left: int,
-        content_right: int,
-        body_y: int,
-        body_bottom: int
-) -> List[ColumnLayout]:
+        max_body_h: int
+) -> List[List[List[CreditLine]]]:
     """
     Layout for credit cards
     """
-    available_h = max(0, body_bottom - body_y)
-    lines_per_col = max(1, available_h // metrics.line_h)
-
-    total_lines = sum(len(r.names) for r in roles)
+    lines_per_col = max(1, max_body_h // metrics.line_h)
+    total_lines = sum(len(role.names) for role in roles)
 
     for k in range(1, max(1, metrics.max_cols) + 1):
         if total_lines <= k * lines_per_col:
-            packed = _fill_columns(roles, k, lines_per_col)
-            return _materialize_columns(packed, k, metrics, content_left, content_right, body_y)
+            return _fill_columns(roles, k, lines_per_col)
     
     raise LayoutDoesNotFitError(card_id, total_lines, metrics.max_cols)
 
@@ -246,10 +242,9 @@ def _fill_columns(
             take = min(len(names) - name_idx, lines_left)
             chunk = names[name_idx : name_idx + take]
 
-            show_role = (name_idx == 0)
             block_lines: List[CreditLine] = []
             for i, name in enumerate(chunk):
-                role_text = role.role if (show_role and i == 0) else ''
+                role_text = role.role if i == 0 else ''
                 block_lines.append(CreditLine(role_text=role_text, name_text=name))
             
             cols[col].append(block_lines)

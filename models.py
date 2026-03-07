@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal
+from PIL import ImageFont
 
 
 @dataclass(slots=True)
@@ -63,3 +64,58 @@ class Metrics:
     # Credits layout
     role_col_w: int
     role_name_gap: int
+
+
+@dataclass(slots=True)
+class CreditLine:
+    """
+    A single credit line
+    Entirely semantic
+    """
+    role_text: str
+    name_text: str
+
+
+@dataclass(slots=True)
+class ColumnLayout:
+    """
+    Layout for a single column of credits
+    """
+    x: int
+    y: int
+    width: int
+    blocks: List[List[CreditLine]]
+    total_lines: int
+
+
+@dataclass(slots=True)
+class CardLayoutPlan:
+    """
+    Complete layout plan for a card
+    """
+    card_id: str
+    card_type: str
+    title: str
+    subtitle: Optional[str]
+
+    card_w: int
+    card_h: int
+    content_left: int
+    content_right: int
+    content_top: int
+    content_bottom: int
+
+    title_y: int
+    subtitle_y: Optional[int]
+    body_y: int
+    body_bottom: int
+
+    columns: List[ColumnLayout]
+    list_items: List[str]
+
+
+@dataclass
+class FontPack:
+    title: ImageFont.FreeTypeFont
+    subtitle: ImageFont.FreeTypeFont
+    body: ImageFont.FreeTypeFont
