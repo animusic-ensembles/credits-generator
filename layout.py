@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
-from typing import List, Optional, Sequence
+from typing import List, Tuple, Optional, Sequence
 
 from models import *
 import config
@@ -17,7 +17,7 @@ class LayoutDoesNotFitError(Exception):
         return f'LayoutDoesNotFitError(Card {self.card_id}): {self.total_lines} lines does not fit into {self.max_col} column(s).'
 
 
-def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
+def layout_card(card: CardData, metrics: Metrics, fonts: FontPack) -> CardLayoutPlan:
     """
     Generate a layout plan for a card
     """
@@ -50,13 +50,15 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
             body_y=stack_top + stack_h,
             body_bottom=stack_top + stack_h,
             columns=[],
-            list_items=[]
+            list_items=[],
+            metrics=metrics,
+            fonts=fonts
         )
     
     max_body_h = max(0, usable_h - title_block_h - metrics.title_gap_after)
 
     if card.card_type == 'list':
-        packed = _layout_list(card.card_id, card.list_items, metrics, max_body_h)
+        packed = _layout_list(card.card_id, card.list_items, metrics, fonts, max_body_h)
         body_lines = _get_max_column_lines(packed)
         body_h = body_lines * metrics.line_h
 
@@ -67,7 +69,7 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
         body_y = stack_top + title_block_h + metrics.title_gap_after
         body_bottom = body_y + body_h
 
-        cols = _materialize_columns(packed, len(packed), metrics, content_left, content_right, body_y)
+        cols = _materialize_columns(packed, len(packed), metrics, fonts, content_left, content_right, body_y)
         return CardLayoutPlan(
             card_id=card.card_id,
             card_type=card.card_type,
@@ -80,14 +82,17 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
             content_top=content_top,
             content_bottom=content_bottom,
             title_y=title_y,
+            subtitle_y=subtitle_y,
             body_y=body_y,
             body_bottom=body_bottom,
             columns=cols,
-            list_items=card.list_items
+            list_items=card.list_items,
+            metrics=metrics,
+            fonts=fonts
         )
     
     if card.card_type == 'credits':
-        packed = _layout_credits(card.card_id, card.roles, metrics, max_body_h)
+        packed = _layout_credits(card.card_id, card.roles, metrics, fonts, max_body_h)
         body_lines = _get_max_column_lines(packed)
         body_h = body_lines * metrics.line_h
 
@@ -98,7 +103,7 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
         body_y = stack_top + title_block_h + metrics.title_gap_after
         body_bottom = body_y + body_h
         
-        cols = _materialize_columns(packed, len(packed), metrics, content_left, content_right, body_y)
+        cols = _materialize_columns(packed, len(packed), metrics, fonts, content_left, content_right, body_y)
         return CardLayoutPlan(
             card_id=card.card_id,
             card_type=card.card_type,
@@ -111,10 +116,13 @@ def layout_card(card: CardData, metrics: Metrics) -> CardLayoutPlan:
             content_top=content_top,
             content_bottom=content_bottom,
             title_y=title_y,
+            subtitle_y=subtitle_y,
             body_y=body_y,
             body_bottom=body_bottom,
             columns=cols,
-            list_items=[]
+            list_items=[],
+            metrics=metrics,
+            fonts=fonts
         )
     
     raise ValueError(f'Unknown card_type: {card.card_type!r}')
@@ -125,9 +133,9 @@ def layout_card_with_fallback(card: CardData):
     Try normal theme, and if it doesn't fit within max_col, try again with a smaller theme.
     """
     try:
-        return layout_card(card, config.METRICS)
+        return layout_card(card, config.METRICS, config.FONTS)
     except LayoutDoesNotFitError:
-        return layout_card(card, config.METRICS_SMALL)
+        return layout_card(card, config.METRICS_SMALL, config.FONTS_SMALL)
 
 
 def _get_title_block_height(subtitle: Optional[str], metrics: Metrics) -> int:
@@ -149,10 +157,57 @@ def _get_max_column_lines(packed: List[List[List[CreditLine]]]) -> int:
     return max(sum(len(block) for block in col) for col in packed)
 
 
+def _text_width(text: str, font: ImageFont.FreeTypeFont) -> float:
+    if not text:
+        return 0.0
+    
+    if hasattr(font, 'getlength'):
+        return font.getlength(text)
+    
+    bbox = font.getbbox(text)
+    return float(bbox[2] - bbox[0])
+
+
+def _trimmed_mean(values: list[float], trim_ratio: float = 0.15) -> float:
+    """
+    Compute a trimmed mean by removing the largest values.
+    """
+    if not values:
+        return 0.0
+
+    values = sorted(values)
+    n = len(values)
+
+    trim_n = int(n * trim_ratio)
+    if trim_n == 0:
+        return sum(values) / n
+
+    trimmed = values[:-trim_n]
+
+    return sum(trimmed) / len(trimmed)
+
+
+def _get_column_optical_widths(blocks: List[List[CreditLine]], fonts: FontPack) -> Tuple[float, float]:
+    role_widths: List[float] = []
+    name_widths: List[float] = []
+
+    for block in blocks:
+        for line in block:
+            if line.role_text:
+                role_widths.append(_text_width(line.role_text, fonts.roles))
+            if line.name_text:
+                name_widths.append(_text_width(line.name_text, fonts.names))
+    
+    role_w = _trimmed_mean(role_widths, 0.1)
+    name_w = _trimmed_mean(name_widths, 0.2)
+
+    return role_w, name_w
+
 def _layout_list(
         card_id: str,
         items: Sequence[str],
         metrics: Metrics,
+        fonts: FontPack,
         max_body_h: int
 ) -> List[List[List[CreditLine]]]:
     """
@@ -191,6 +246,7 @@ def _layout_credits(
         card_id: str,
         roles: Sequence[RoleCredit],
         metrics: Metrics,
+        fonts: FontPack,
         max_body_h: int
 ) -> List[List[List[CreditLine]]]:
     """
@@ -264,6 +320,7 @@ def _materialize_columns(
         packed_lines: List[List[List[CreditLine]]],
         k: int,
         metrics: Metrics,
+        fonts: FontPack,
         content_left: int,
         content_right: int,
         body_y: int
@@ -273,22 +330,41 @@ def _materialize_columns(
     """
     content_w = content_right - content_left
     
-    centres = metrics.col_centers.get(k) or metrics.col_centers[max(metrics.col_centers)]
+    centers = metrics.col_centers.get(k) or metrics.col_centers[max(metrics.col_centers)]
     width_frac = metrics.col_width_frac.get(k) or metrics.col_width_frac[max(metrics.col_width_frac)]
     col_w = int(content_w * width_frac)
 
     cols: List[ColumnLayout] = []
     for i in range(k):
-        cx = content_left + int(content_w * centres[i])
-        x = cx - col_w // 2
+        center_x = content_left + int(content_w * centers[i])
+        col_left = center_x - col_w // 2
+        col_right = col_left + col_w
 
         blocks = packed_lines[i] if i < len(packed_lines) else []
         total_lines = sum(len(b) for b in blocks)
 
-        cols.append(ColumnLayout(x=x, y=body_y, width=col_w, blocks=blocks, total_lines=total_lines))
+        role_w, name_w = _get_column_optical_widths(blocks, fonts)
+        gap = metrics.role_name_gap
 
-    for c in cols:
-        if c.x < content_left or (c.x + c.width) > content_right:
+        total_optical_w = role_w + gap + name_w
+        optical_left = center_x - total_optical_w // 2
+
+        role_x = int(round(optical_left + role_w))
+        name_x = int(round(role_x + gap))
+
+        cols.append(
+            ColumnLayout(
+                center_x=center_x,
+                role_x=role_x,
+                name_x=name_x,
+                y=body_y,
+                width=col_w,
+                blocks=blocks,
+                total_lines=total_lines
+            )
+        )
+        
+        if col_left < content_left or col_right > content_right:
             raise ValueError("Column geometry exceeds content bounds. ")
     
     return cols

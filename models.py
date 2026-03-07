@@ -66,6 +66,14 @@ class Metrics:
     role_name_gap: int
 
 
+@dataclass
+class FontPack:
+    title: ImageFont.FreeTypeFont
+    subtitle: ImageFont.FreeTypeFont
+    roles: ImageFont.FreeTypeFont
+    names: ImageFont.FreeTypeFont
+
+
 @dataclass(slots=True)
 class CreditLine:
     """
@@ -81,7 +89,9 @@ class ColumnLayout:
     """
     Layout for a single column of credits
     """
-    x: int
+    center_x: int
+    role_x: int
+    name_x: int
     y: int
     width: int
     blocks: List[List[CreditLine]]
@@ -113,9 +123,5 @@ class CardLayoutPlan:
     columns: List[ColumnLayout]
     list_items: List[str]
 
-
-@dataclass
-class FontPack:
-    title: ImageFont.FreeTypeFont
-    subtitle: ImageFont.FreeTypeFont
-    body: ImageFont.FreeTypeFont
+    metrics: Metrics
+    fonts: FontPack

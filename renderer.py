@@ -1,47 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from models import *
 
 
-def load_font(path: Optional[str], size: int) -> ImageFont.FreeTypeFont:
-    """
-    Load a TTF/OTF font. Otherwise fallback to PIL's default
-    """
-    try:
-        if path:
-            return ImageFont.truetype(path, size=size)
-    except OSError:
-        pass
-
-    return ImageFont.load_default()
-
-
-def make_font_pack(
-        title_font_path: Optional[str],
-        subtitle_font_path: Optional[str],
-        body_font_path: Optional[str],
-        title_size: int,
-        subtitle_size: int,
-        body_size: int
-) -> FontPack:
-    return FontPack(
-        title=load_font(title_font_path, title_size),
-        subtitle=load_font(subtitle_font_path, subtitle_size),
-        body=load_font(body_font_path, body_size)
-    )
-
-
-def render_card(
-        plan: CardLayoutPlan,
-        metrics: Metrics,
-        fonts: FontPack
-) -> Image.Image:
+def render_card(plan: CardLayoutPlan) -> Image.Image:
     """
     Render a CardLayoutPlan to an image
     """
@@ -50,11 +17,11 @@ def render_card(
     draw.fontmode = 'L'
     color = (255, 255, 255, 255)
 
-    _draw_title_block(draw, plan, fonts, color)
+    _draw_title_block(draw, plan, color)
     if plan.card_type == 'credits':
-        _draw_credits(draw, plan, metrics, fonts, color)
+        _draw_credits(draw, plan, color)
     elif plan.card_type == 'list':
-        _draw_list(draw, plan, metrics, fonts, color)
+        _draw_list(draw, plan, color)
     elif plan.card_type == 'title_only':
         pass
     else:
@@ -66,27 +33,26 @@ def render_card(
 def _draw_title_block(
         draw: ImageDraw.ImageDraw,
         plan: CardLayoutPlan,
-        fonts: FontPack,
         color: Tuple[int, int, int, int]
 ) -> None:
     """
     Draw the title and optional subtitle centered horizontally
     """
-    centre_x = plan.card_w // 2
+    center_x = plan.card_w // 2
 
     draw.text(
-        (centre_x, plan.title_y),
+        (center_x, plan.title_y),
         plan.title,
-        font=fonts.title,
+        font=plan.fonts.title,
         fill=color,
         anchor='ma'
     )
 
     if plan.subtitle and plan.subtitle_y is not None:
         draw.text(
-            (centre_x, plan.subtitle_y),
+            (center_x, plan.subtitle_y),
             plan.subtitle,
-            font=fonts.subtitle,
+            font=plan.fonts.subtitle,
             fill=color,
             anchor='ma'
         )
@@ -95,36 +61,51 @@ def _draw_title_block(
 def _draw_list(
         draw: ImageDraw.ImageDraw,
         plan: CardLayoutPlan,
-        metrics: Metrics,
-        fonts: FontPack,
         color: Tuple[int, int, int, int]
 ) -> None:
     """
     Draw list in a single text column
     """
+    body_font = plan.fonts.names
+    baseline_offset, _ = body_font.getmetrics()
+
+    for col in plan.columns:
+        y = col.y + baseline_offset
+
+        for block in col.blocks:
+            for line in block:
+                draw.text((col.center_x, y), line.name_text, font=body_font, fill=color, anchor='ms')
+                y += plan.metrics.line_h
 
 
 def _draw_credits(
         draw: ImageDraw.ImageDraw,
         plan: CardLayoutPlan,
-        metrics: Metrics,
-        fonts: FontPack,
         color: Tuple[int, int, int, int]
 ) -> None:
     """
     Draw credits in role/name subcolumns
     """
-    body_font = fonts.body
+    role_font = plan.fonts.roles
+    name_font = plan.fonts.names
+    baseline_offset, _ = name_font.getmetrics()
 
     for col in plan.columns:
-        role_x = col.x
-        name_x = col.x + metrics.role_col_w + metrics.role_name_gap
-        y = col.y
-
-        role_w = max(1, metrics.role_col_w)
-        name_w = max(1, col.width - metrics.role_col_w - metrics.role_name_gap)
+        y = col.y + baseline_offset
 
         for block in col.blocks:
             for line in block:
                 if line.role_text:
-                    role_text = 
+                    draw.text((col.role_x, y), line.role_text, font=role_font, fill=color, anchor='rs')
+                draw.text((col.name_x, y), line.name_text, font=name_font, fill=color, anchor='ls')
+
+                y += plan.metrics.line_h
+
+
+def save_card(img: Image.Image, out_path: str | Path) -> None:
+    """
+    Saves a rendered card image to a file
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
