@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from generator import build_archive
@@ -18,7 +18,12 @@ app.mount('/static', StaticFiles(directory=ROOT / 'static'), name='static')
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
-@app.get('/', response_class=HTMLResponse)
+@app.get('/', include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url='/credits')
+
+
+@app.get('/credits', response_class=HTMLResponse)
 def index() -> str:
     return (ROOT / 'index.html').read_text(encoding='utf-8')
 
