@@ -1,24 +1,33 @@
-import os, glob
+from pathlib import Path
+
 from parser import parse_cards_csv
 from layout import layout_card_with_fallback
 from renderer import render_card, save_card
 
-filename = 'csv/W26 EOT Credits.csv'
+ROOT = Path(__file__).resolve().parent
+DEFAULT_CSV = ROOT / 'csv' / 'W26 EOT Credits.csv'
+DEFAULT_OUTPUT = ROOT / 'Cards'
 
-try:
-    root = os.path.dirname(os.path.abspath(__file__))
-    files = glob.glob(os.path.join(root, 'Cards', '*'))
 
-    for file in files:
-        if os.path.isfile(file):
-            os.remove(file)
-    print('All old cards deleted successfully.')
-except OSError:
-    print('Error occurred while deleting old cards.')
+def generate_cards(csv_path: str | Path, output_dir: str | Path) -> list[Path]:
+    """Parse a CSV and write its rendered credit cards to output_dir."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    cards = parse_cards_csv(csv_path)
+    paths: list[Path] = []
 
-cards = parse_cards_csv(filename)
+    for card in cards:
+        plan = layout_card_with_fallback(card)
+        image = render_card(plan)
+        path = output_dir / f'{card.card_id}.png'
+        save_card(image, path)
+        paths.append(path)
 
-for card in cards:
-    plan = layout_card_with_fallback(card)
-    img = render_card(plan)
-    save_card(img, f'Cards/{card.card_id}.png')
+    return paths
+
+
+if __name__ == '__main__':
+    for old_card in DEFAULT_OUTPUT.glob('*'):
+        if old_card.is_file():
+            old_card.unlink()
+    generate_cards(DEFAULT_CSV, DEFAULT_OUTPUT)

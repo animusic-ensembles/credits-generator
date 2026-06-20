@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animusic Credit Image Generator</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main>
+    <h1>Animusic Credit Image Generator</h1>
+    <p>Upload a UTF-8 CSV and receive all generated PNG cards in one ZIP file.</p>
+    <form id="upload-form">
+      <input id="file" name="file" type="file" accept=".csv,text/csv" required>
+      <button id="submit" type="submit">Generate images</button>
+    </form>
+    <p id="message" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    const form = document.querySelector('#upload-form');
+    const input = document.querySelector('#file');
+    const button = document.querySelector('#submit');
+    const message = document.querySelector('#message');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      message.className = '';
+      message.textContent = 'Generating images…';
+      button.disabled = true;
+      try {
+        const response = await fetch('/generate', { method: 'POST', body: new FormData(form) });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.detail || 'The server could not generate the images.');
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="([^"]+)"/);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = match ? match[1] : 'credit-images.zip';
+        link.click();
+        URL.revokeObjectURL(link.href);
+        message.textContent = 'Done — your ZIP download has started.';
+      } catch (error) {
+        message.className = 'error';
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

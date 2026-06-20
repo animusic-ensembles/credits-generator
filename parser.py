@@ -160,6 +160,8 @@ def parse_cards_csv(path: str | Path) -> List[CardData]:
         for _ in range(3):
             next(reader, None)
         for i, row in enumerate(reader, start=4):
+            if len(row) < 3:
+                raise ParseError('Expected at least 3 columns', i, row)
             c0, c1, c2 = _clean(row[0]), _clean(row[1]), _clean(row[2])
 
             # Check for card terminator

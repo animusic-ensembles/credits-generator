@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from PIL import ImageFont
 from typing import Optional
 from models import Metrics, FontPack
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 def _load_font(path: Optional[str], size: int) -> ImageFont.FreeTypeFont:
@@ -21,8 +25,8 @@ def _line_height(font: ImageFont.FreeTypeFont) -> int:
     return int(total_height)
 
 
-FONT_PATH = 'font/InterDisplay-Regular.ttf'
-LIGHT_FONT_PATH = 'font/InterDisplay-Light.ttf'
+FONT_PATH = str(ROOT / 'font' / 'InterDisplay-Regular.ttf')
+LIGHT_FONT_PATH = str(ROOT / 'font' / 'InterDisplay-Light.ttf')
 
 TITLE_FONT_SIZE = 40
 SUBTITLE_FONT_SIZE = 36
