@@ -3,7 +3,7 @@ from parser import parse_cards_csv
 from layout import layout_card_with_fallback
 from renderer import render_card, save_card
 
-filename = 'csv/F25 EOT Credits.csv'
+filename = 'csv/W26 EOT Credits.csv'
 
 try:
     root = os.path.dirname(os.path.abspath(__file__))

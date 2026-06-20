@@ -21,8 +21,8 @@ def _line_height(font: ImageFont.FreeTypeFont) -> int:
     return int(total_height)
 
 
-FONT_PATH = 'font/NotoSansJP-Regular.ttf'
-LIGHT_FONT_PATH = 'font/NotoSansJP-Light.ttf'
+FONT_PATH = 'font/InterDisplay-Regular.ttf'
+LIGHT_FONT_PATH = 'font/InterDisplay-Light.ttf'
 
 TITLE_FONT_SIZE = 40
 SUBTITLE_FONT_SIZE = 36
@@ -62,8 +62,8 @@ METRICS = Metrics(
     
     col_centers={
         1: [0.50],
-        2: [0.33, 0.67],
-        3: [0.17, 0.50, 0.83]
+        2: [0.3, 0.7],
+        3: [0.15, 0.50, 0.85]
     },
 
     col_width_frac={
